@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Register - HOPE.AI</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+</head>
+<body class="d-flex justify-content-center align-items-center vh-100">
+  <div class="card p-4" style="min-width: 300px;">
+    <h2 class="text-center">HOPE.AI Register</h2>
+    <form id="register-form">
+      <div class="mb-3">
+        <label for="email" class="form-label">Email address</label>
+        <input type="email" id="email" class="form-control" required/>
+      </div>
+      <div class="mb-3">
+        <label for="password" class="form-label">Password</label>
+        <input type="password" id="password" class="form-control" required/>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Register</button>
+      <p class="text-center mt-2">Already have an account? <a href="/login">Login</a></p>
+    </form>
+    <div id="register-message" class="text-center mt-2"></div>
+  </div>
+
+  <script>
+    document.getElementById("register-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      const response = await fetch("/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      const result = await response.json();
+      const message = document.getElementById("register-message");
+
+      if (result.success) {
+        message.innerHTML = "✅ Registration successful! Redirecting to chat...";
+        setTimeout(() => { window.location.href = "/"; }, 1500);
+      } else {
+        message.innerHTML = "❌ " + result.error;
+      }
+    });
+  </script>
+</body>
+</html>

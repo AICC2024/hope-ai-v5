@@ -42,5 +42,48 @@
             }
         });
     </script>
+
+    <h3 class="mt-4">Generate & Assign License Key</h3>
+    <form id="license-form" class="mb-3">
+        <div class="mb-2">
+            <label for="license-user-email" class="form-label">User Email</label>
+            <input type="email" id="license-user-email" class="form-control" required>
+        </div>
+        <button type="submit" class="btn btn-warning">Generate & Assign License</button>
+    </form>
+
+    <div id="license-result" class="mt-2"></div>
+
+    <script>
+        function generateLicenseKey() {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            let key = "";
+            for (let i = 0; i < 16; i++) {
+                if (i > 0 && i % 4 === 0) key += "-";
+                key += chars[Math.floor(Math.random() * chars.length)];
+            }
+            return key;
+        }
+
+        document.getElementById("license-form").addEventListener("submit", async function(e) {
+            e.preventDefault();
+            const email = document.getElementById("license-user-email").value;
+            const licenseKey = generateLicenseKey();
+
+            const response = await fetch("/admin/assign-license", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, licenseKey })
+            });
+
+            const result = await response.json();
+            const output = document.getElementById("license-result");
+            if (result.success) {
+                output.innerHTML = `<strong>License Assigned:</strong> ${licenseKey}`;
+            } else {
+                output.innerHTML = `<strong>Error:</strong> ${result.error}`;
+            }
+        });
+    </script>
 </body>
 </html>

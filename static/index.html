@@ -196,14 +196,22 @@
                         body: JSON.stringify({ question: question })
                     });
 
-                    const data = await response.json();
+                    if (!response.ok) {
+                        if (response.status === 403) {
+                            alert("You’ve reached your free query limit. Please contact Naveon to buy a license.");
+                        } else {
+                            const errorData = await response.json();
+                            alert(errorData.error || "An unexpected error occurred.");
+                        }
+                        removeTypingIndicator();
+                        return;
+                    }
 
+                    const data = await response.json();
                     removeTypingIndicator();
 
                     if (data.answer) {
                         addMessage("ai", data.answer);
-                    } else {
-                        addMessage("ai", "Error: Unable to retrieve a response.");
                     }
                 } catch (error) {
                     console.error("Fetch error:", error);

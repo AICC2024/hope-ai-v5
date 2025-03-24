@@ -58,7 +58,9 @@ def init_db():
                         id SERIAL PRIMARY KEY,
                         email VARCHAR(100) UNIQUE NOT NULL,
                         password TEXT NOT NULL,
-                        role VARCHAR(10) DEFAULT 'user'
+                        role VARCHAR(10) DEFAULT 'user',
+                        query_count INTEGER DEFAULT 0,
+                        license_key VARCHAR(100)
                     );
                 ''')
                 cur.execute('''
@@ -175,7 +177,7 @@ def login_user():
         conn = get_db_connection()
         with conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT id, password, role FROM users WHERE email = %s", (email,))
+                cur.execute("SELECT id, password, role, query_count, license_key FROM users WHERE email = %s", (email,))
                 user = cur.fetchone()
 
                 if not user or not bcrypt.checkpw(password.encode("utf-8"), user[1].encode("utf-8")):
@@ -225,10 +227,87 @@ def is_logged_in():
         })
     return jsonify({"logged_in": False})
 
+@app.route("/admin/assign-license", methods=["POST"])
+def assign_license():
+    """Admin generates and assigns a license key to a user."""
+    if session.get("role") != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    email = data.get("email")
+    license_key = data.get("licenseKey")
+
+    if not email or not license_key:
+        return jsonify({"error": "Email and license key are required"}), 400
+
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE users SET license_key = %s WHERE email = %s", (license_key, email))
+                if cur.rowcount == 0:
+                    return jsonify({"error": "User not found"}), 404
+                conn.commit()
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    finally:
+        if conn:
+            conn.close()
+
+    return jsonify({"success": True, "licenseKey": license_key})
+
+# New Routes for User Registration
+@app.route("/register", methods=["GET"])
+def serve_register():
+    """Serves the user registration page."""
+    return send_from_directory("static", "register.html")
+
+@app.route("/register", methods=["POST"])
+def register_user():
+    """Handles user registration and logs them in."""
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor() as cur:
+                # Check if user already exists
+                cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                if cur.fetchone():
+                    return jsonify({"error": "Email is already registered."}), 409
+
+                # Insert user
+                cur.execute("""
+                    INSERT INTO users (email, password, role, query_count, license_key)
+                    VALUES (%s, %s, 'user', 0, NULL)
+                    RETURNING id;
+                """, (email, hashed_password))
+                user_id = cur.fetchone()[0]
+                conn.commit()
+
+                # Log them in
+                session["user_id"] = user_id
+                session["email"] = email
+                session["role"] = "user"
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    finally:
+        if conn:
+            conn.close()
+
+    return jsonify({"success": True})
+
 # Restrict access unless logged in
 @app.before_request
 def require_login():
-    allowed_routes = ["/login", "/logout", "/admin"]
+    allowed_routes = ["/login", "/logout", "/admin", "/register"]
     if request.path not in allowed_routes and "user_id" not in session:
         return redirect("/login")
 
@@ -251,6 +330,22 @@ def ask_hope_ai():
 
         if not user_id:
             return jsonify({"error": "Unauthorized"}), 401  # User must be logged in
+
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT query_count, license_key FROM users WHERE id = %s", (user_id,))
+                user_info = cur.fetchone()
+                query_count = user_info[0]
+                license_key = user_info[1]
+
+                if license_key is None and query_count >= 3:
+                    return jsonify({"error": "Query limit reached. Upgrade your plan to continue."}), 403
+
+                # Increment query count for non-licensed users
+                if license_key is None:
+                    cur.execute("UPDATE users SET query_count = query_count + 1 WHERE id = %s", (user_id,))
+                    conn.commit()
 
         print("Creating thread for conversation tracking...")
 
