@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOPE.AI - Chat</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            height: 80vh;
+        }
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-box {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background: #fff;
+            border-radius: 5px;
+            max-height: 60vh;
+        }
+        .message {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .message.user {
+            justify-content: flex-end;
+        }
+        .message.ai {
+            justify-content: flex-start;
+        }
+        .message img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin: 0 10px;
+        }
+        .message-text {
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 70%;
+        }
+        .user .message-text {
+            background: #007bff;
+            color: white;
+        }
+        .ai .message-text {
+            background: #f1f1f1;
+            color: black;
+        }
+        .input-container {
+            display: flex;
+            margin-top: 10px;
+            align-items: center;
+        }
+        .input-container input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .btn-send {
+            margin-left: 10px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        .btn-send:hover {
+            background: #0056b3;
+        }
+        .dot {
+            animation: blink 1.5s infinite;
+            font-weight: bold;
+        }
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes blink {
+            0% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>HOPE.AI Chat</h2>
+            <div>
+                <a href="/history-page" class="btn btn-secondary btn-sm">View History</a>
+                <button id="saveChatButton" class="btn btn-success btn-sm">Save Chat</button>
+                <a href="/admin" class="btn btn-primary btn-sm" id="admin-button" style="display: none;">Admin</a>
+                <button id="logout-button" class="btn btn-danger btn-sm">Logout</button>
+
+            </div>
+        </div>
+
+        <div id="chat-box" class="chat-box"></div>
+
+        <div class="input-container">
+            <input type="text" id="question" placeholder="Type a message...">
+            <button id="askButton" class="btn-send">Send</button>
+        </div>
+    </div>
+
+    <script>
+        function saveChatAsText() {
+            let chatContent = Array.from(document.querySelectorAll(".message")).map(msg => 
+                `${msg.classList.contains("user") ? "You" : "HOPE.AI"}: ${msg.querySelector(".message-text").innerText}`
+            ).join("\n\n");
+
+            if (!chatContent.trim()) {
+                alert("No chat history to save.");
+                return;
+            }
+
+            let blob = new Blob([chatContent], { type: "text/plain" });
+            let a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "chat_history.txt";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        document.getElementById("logout-button").addEventListener("click", async function() {
+            const response = await fetch("/logout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                alert("You have been logged out.");
+                window.location.href = "/login";  
+            } else {
+                alert("Logout failed: " + result.error);
+            }
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const chatBox = document.getElementById("chat-box");
+            const inputField = document.getElementById("question");
+            const sendButton = document.getElementById("askButton");
+            const saveChatButton = document.getElementById("saveChatButton");
+
+            if (saveChatButton) {
+                saveChatButton.addEventListener("click", saveChatAsText);
+            }
+
+            async function askQuestion() {
+                const question = inputField.value.trim();
+                if (!question) {
+                    alert("Please enter a message.");
+                    return;
+                }
+
+                addMessage("user", question);
+                inputField.value = "";
+
+                addTypingIndicator();
+
+                try {
+                    const response = await fetch("/ask", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ question: question })
+                    });
+
+                    const data = await response.json();
+
+                    removeTypingIndicator();
+
+                    if (data.answer) {
+                        addMessage("ai", data.answer);
+                    } else {
+                        addMessage("ai", "Error: Unable to retrieve a response.");
+                    }
+                } catch (error) {
+                    console.error("Fetch error:", error);
+                    removeTypingIndicator();
+                    addMessage("ai", "Failed to connect to the server.");
+                }
+            }
+     
+            function addMessage(sender, text) {
+                const messageDiv = document.createElement("div");
+                messageDiv.classList.add("message", sender);
+
+                const img = document.createElement("img");
+                img.src = sender === "user" ? "https://cdn-icons-png.flaticon.com/512/847/847969.png" : "https://cdn-icons-png.flaticon.com/512/4712/4712037.png";
+                img.alt = sender;
+
+                const textDiv = document.createElement("div");
+                textDiv.classList.add("message-text");
+                textDiv.innerText = text;
+
+                messageDiv.appendChild(sender === "user" ? textDiv : img);
+                messageDiv.appendChild(sender === "user" ? img : textDiv);
+
+                chatBox.appendChild(messageDiv);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+            function addTypingIndicator() {
+                const typingDiv = document.createElement("div");
+                typingDiv.classList.add("message", "ai");
+                typingDiv.id = "typing-indicator";
+
+                const aiImg = document.createElement("img");
+                aiImg.src = "https://cdn-icons-png.flaticon.com/512/4712/4712037.png";
+                aiImg.alt = "AI";
+
+                const typingText = document.createElement("div");
+                typingText.classList.add("message-text");
+                typingText.innerHTML = "Thinking<span class='dot'>.</span><span class='dot'>.</span><span class='dot'>.</span>";
+
+                typingDiv.appendChild(aiImg);
+                typingDiv.appendChild(typingText);
+                chatBox.appendChild(typingDiv);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+            function removeTypingIndicator() {
+                const typingDiv = document.getElementById("typing-indicator");
+                if (typingDiv) {
+                    typingDiv.remove();
+                }
+            }
+
+            sendButton.addEventListener("click", askQuestion);
+            inputField.addEventListener("keypress", event => {
+                if (event.key === "Enter") askQuestion();
+            });
+        });
+   
+    </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", async function () {
+            const adminButton = document.getElementById("admin-button");
+
+            try {
+                const response = await fetch("/is_logged_in");
+                const data = await response.json();
+
+                if (data.logged_in && data.role === "admin") {
+                    adminButton.style.display = "inline-block"; // Show Admin button for admins
+                }
+            } catch (error) {
+                console.error("Error checking login status:", error);
+            }
+        });
+    </script>
+</body>
+</html>

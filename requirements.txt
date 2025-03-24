@@ -1,0 +1,6 @@
+flask-session
+gunicorn
+openai
+flask-cors
+psycopg2-binary
+bcrypt
