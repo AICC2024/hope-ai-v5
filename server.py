@@ -35,7 +35,8 @@ def get_db_connection():
             host=PG_HOST,
             database=PG_DATABASE,
             user=PG_USER,
-            password=PG_PASSWORD
+            password=PG_PASSWORD,
+            sslmode='require'  # Required for Render PostgreSQL
         )
     except Exception as e:
         print(f"Database connection error: {e}")
