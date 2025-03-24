@@ -118,6 +118,18 @@
     </div>
 
     <script>
+        function formatTimestamp(utcTime) {
+            const date = new Date(utcTime);
+            return date.toLocaleString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
         async function loadChatHistory() {
             try {
                 const response = await fetch("/history");
@@ -137,12 +149,12 @@
                 sortedHistory.forEach(chat => {
                     const userMessageDiv = document.createElement("div");
                     userMessageDiv.classList.add("message", "user");
-                    userMessageDiv.innerHTML = `<strong>You:</strong> ${chat.question}<br><span class="timestamp">${chat.timestamp}</span>`;
+                    userMessageDiv.innerHTML = `<strong>You:</strong> ${chat.question}<br><span class="timestamp">${formatTimestamp(chat.timestamp)}</span>`;
                     historyBox.appendChild(userMessageDiv);
 
                     const aiMessageDiv = document.createElement("div");
                     aiMessageDiv.classList.add("message", "ai");
-                    aiMessageDiv.innerHTML = `<strong>HOPE.AI:</strong> ${chat.answer}<br><span class="timestamp">${chat.timestamp}</span>`;
+                    aiMessageDiv.innerHTML = `<strong>HOPE.AI:</strong> ${chat.answer}<br><span class="timestamp">${formatTimestamp(chat.timestamp)}</span>`;
                     historyBox.appendChild(aiMessageDiv);
                 });
 
