@@ -36,8 +36,7 @@ def get_db_connection():
             database=PG_DATABASE,
             user=PG_USER,
             password=PG_PASSWORD,
-            sslmode='require',  # Required for Render PostgreSQL
-            sslrootcert='/etc/ssl/certs/ca-certificates.crt'  # Most common CA path on Linux
+            sslmode='require'  # Simple SSL connection for Render
         )
     except Exception as e:
         print(f"Database connection error: {e}")
