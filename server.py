@@ -7,6 +7,7 @@ from flask_cors import CORS
 from flask_session import Session
 from psycopg2.extras import RealDictCursor
 import openai
+from urllib.parse import urlparse
 
 # Flask app setup
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -29,14 +30,16 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = "asst_BVHJcqvmsENpjqhBlHI07sre"
 
 def get_db_connection():
-    """Establish PostgreSQL connection."""
+    """Establish PostgreSQL connection using Render's DATABASE_URL."""
     try:
+        result = urlparse(os.environ.get("DATABASE_URL"))
         return psycopg2.connect(
-            host=PG_HOST,
-            database=PG_DATABASE,
-            user=PG_USER,
-            password=PG_PASSWORD,
-            sslmode='require'  # Simple SSL connection for Render
+            database=result.path[1:],
+            user=result.username,
+            password=result.password,
+            host=result.hostname,
+            port=result.port,
+            sslmode='require'
         )
     except Exception as e:
         print(f"Database connection error: {e}")
