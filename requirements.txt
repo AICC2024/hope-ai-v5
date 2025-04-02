@@ -4,3 +4,4 @@ openai
 flask-cors
 psycopg2-binary
 bcrypt
+python-dotenv
