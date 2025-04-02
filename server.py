@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import psycopg2
 import bcrypt
 import time
@@ -30,17 +32,23 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = "asst_BVHJcqvmsENpjqhBlHI07sre"
 
 def get_db_connection():
-    """Establish PostgreSQL connection using Render's DATABASE_URL."""
+    """Connects to PostgreSQL, using SSL only if not localhost."""
     try:
         result = urlparse(os.environ.get("DATABASE_URL"))
-        return psycopg2.connect(
-            database=result.path[1:],
-            user=result.username,
-            password=result.password,
-            host=result.hostname,
-            port=result.port,
-            sslmode='require'
-        )
+        ssl_required = result.hostname != "localhost"
+
+        conn_args = {
+            "database": result.path[1:],
+            "user": result.username,
+            "password": result.password,
+            "host": result.hostname,
+            "port": result.port,
+        }
+
+        if ssl_required:
+            conn_args["sslmode"] = "require"
+
+        return psycopg2.connect(**conn_args)
     except Exception as e:
         print(f"Database connection error: {e}")
         return None  # Return None if the connection fails
