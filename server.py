@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
 load_dotenv()
+import stripe
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 import psycopg2
 import bcrypt
 import time
@@ -384,7 +386,7 @@ def serve_register():
 # Restrict access unless logged in
 @app.before_request
 def require_login():
-    allowed_routes = ["/login", "/logout", "/admin", "/register"]
+    allowed_routes = ["/login", "/logout", "/admin", "/register", "/purchase-license", "/create-checkout-session", "/purchase-license-success"]
     if request.path not in allowed_routes and "user_id" not in session:
         return redirect("/login")
 
@@ -486,6 +488,80 @@ def ask_hope_ai():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/create-checkout-session", methods=["POST"])
+def create_checkout_session():
+    data = request.get_json()
+    email = data.get("email")
+    tier = data.get("tier")
+
+    if not email or not tier:
+        return jsonify({"error": "Email and tier are required"}), 400
+
+    # Replace with your real Stripe Price IDs
+    tier_prices = {
+        "1": "price_1RCjqaQeK1RbsWtD4WfwsdOd",
+        "3-5": "price_1RCjqaQeK1RbsWtDLNj1zKPS",
+        "6-10": "price_1RCjqaQeK1RbsWtDJl6tvTzr",
+        "11+": "price_1RCjqaQeK1RbsWtDuLSVkgo7"
+    }
+
+    price_id = tier_prices.get(tier)
+    if not price_id:
+        return jsonify({"error": "Invalid license tier"}), 400
+
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price": price_id,
+                "quantity": 1
+            }],
+            mode="payment",
+            success_url=f"{request.host_url}purchase-license-success?email={email}",
+            cancel_url=f"{request.host_url}purchase-license?email={email}"
+        )
+        return jsonify({"url": session.url})
+    except Exception as e:
+        print(f"Stripe error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/purchase-license-success", methods=["GET"])
+def purchase_license_success():
+    """Confirmation page shown after successful Stripe payment."""
+    email = request.args.get("email")
+    domain = email.split("@")[-1]
+
+    license_key = "Unavailable"
+    tier = "Unavailable"
+
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT license_key, tier FROM licenses WHERE domain = %s", (domain,))
+                result = cur.fetchone()
+                if result:
+                    license_key, tier = result
+    except Exception as e:
+        print(f"License confirmation error: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+    return f"""
+    <html>
+        <head><title>Purchase Successful</title></head>
+        <body style="font-family: Arial; padding: 20px;">
+            <h2>✅ Thank You for Your Purchase!</h2>
+            <p>The HOPE.AI license for <strong>{email}</strong> has been activated.</p>
+            <p><strong>License Tier:</strong> {tier}</p>
+            <p><strong>License Key:</strong> <code>{license_key}</code></p>
+            <p>You may now close this window or share access with your team.</p>
+            <a href="/" style="display: inline-block; margin-top: 20px;">Back to Home</a>
+        </body>
+    </html>
+    """
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5004, debug=True)
