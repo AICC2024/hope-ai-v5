@@ -341,18 +341,12 @@ def register_user():
                 if cur.fetchone():
                     return jsonify({"error": "Email is already registered."}), 409
 
-                # Check for license match by domain
-                domain = email.split("@")[-1]
-                cur.execute("SELECT license_key FROM licenses WHERE domain = %s", (domain,))
-                license_match = cur.fetchone()
-                assigned_license = license_match[0] if license_match else None
-
-                # Insert user with assigned license if available
+                # Insert user
                 cur.execute("""
                     INSERT INTO users (email, password, role, query_count, license_key)
-                    VALUES (%s, %s, 'user', 0, %s)
+                    VALUES (%s, %s, 'user', 0, NULL)
                     RETURNING id;
-                """, (email, hashed_password, assigned_license))
+                """, (email, hashed_password))
                 user_id = cur.fetchone()[0]
                 conn.commit()
 
@@ -367,11 +361,6 @@ def register_user():
             conn.close()
 
     return jsonify({"success": True})
-
-@app.route("/register", methods=["GET"])
-def serve_register():
-    """Serve the user registration page."""
-    return send_from_directory("static", "register.html")
 
 # Restrict access unless logged in
 @app.before_request
