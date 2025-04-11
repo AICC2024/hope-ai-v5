@@ -294,7 +294,7 @@
             }
 
             function showUpgradeModal(email) {
-                const licenseLink = `https://purchase-link.com?email=${encodeURIComponent(email)}`; // Replace with actual link generation logic
+                const licenseLink = `${window.location.origin}/purchase-license?email=${encodeURIComponent(email)}`;
                 document.getElementById("licenseLink").value = licenseLink;
                 const upgradeModal = new bootstrap.Modal(document.getElementById('upgradeModal'));
                 try {

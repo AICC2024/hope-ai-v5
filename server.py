@@ -198,6 +198,14 @@ def login_user():
                 session["user_id"] = user[0]
                 session["email"] = email
                 session["role"] = user[2]
+                if user[4] is None:
+                    domain = email.split("@")[-1]
+                    cur.execute("SELECT license_key FROM licenses WHERE domain = %s", (domain,))
+                    license_match = cur.fetchone()
+                    if license_match:
+                        license_key = license_match[0]
+                        cur.execute("UPDATE users SET license_key = %s WHERE id = %s", (license_key, user[0]))
+                        conn.commit()
 
                 # Log the login event
                 cur.execute("INSERT INTO activity_log (user_id, action) VALUES (%s, %s)", (user[0], "login"))
