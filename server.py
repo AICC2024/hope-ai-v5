@@ -268,11 +268,57 @@ def assign_license():
 
     return jsonify({"success": True, "licenseKey": license_key})
 
-# New Routes for User Registration
-@app.route("/register", methods=["GET"])
-def serve_register():
-    """Serves the user registration page."""
-    return send_from_directory("static", "register.html")
+@app.route("/purchase-license", methods=["GET"])
+def serve_purchase_license():
+    """Serve the purchase license form."""
+    return send_from_directory("static", "purchase-license.html")
+
+@app.route("/purchase-license", methods=["POST"])
+def purchase_license():
+    """Simulate license generation and store by domain."""
+    data = request.get_json()
+    email = data.get("email")
+    tier = data.get("tier")
+
+    if not email or not tier:
+        return jsonify({"error": "Email and license tier are required."}), 400
+
+    domain = email.split("@")[-1]
+    license_key = f"HOPE-{domain.upper()}-{str(int(time.time()))}"
+    tier_prices = {"1": 500, "3-5": 900, "5-10": 3500, "10+": 5000}
+    price = tier_prices.get(tier, 0)
+
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS licenses (
+                        id SERIAL PRIMARY KEY,
+                        domain TEXT UNIQUE NOT NULL,
+                        license_key TEXT NOT NULL,
+                        tier TEXT,
+                        price INTEGER,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                ''')
+                cur.execute('''
+                    INSERT INTO licenses (domain, license_key, tier, price)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (domain) DO UPDATE
+                    SET license_key = EXCLUDED.license_key,
+                        tier = EXCLUDED.tier,
+                        price = EXCLUDED.price,
+                        created_at = CURRENT_TIMESTAMP;
+                ''', (domain, license_key, tier, price))
+                conn.commit()
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    finally:
+        if conn:
+            conn.close()
+
+    return jsonify({"success": True, "licenseKey": license_key, "price": price})
 
 @app.route("/register", methods=["POST"])
 def register_user():

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Purchase HOPE.AI License</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+</head>
+<body class="bg-light">
+  <div class="container my-5">
+    <div class="card p-4">
+      <h2>Activate a HOPE.AI License</h2>
+      <p>Empower your organization with full access to HOPE.AI — real-time, AI-powered insights for CMS compliance with Hospice Outcomes and Patient Evaluation.</p>
+
+      <form id="license-form">
+        <div class="mb-3">
+          <label class="form-label">Organization Email</label>
+          <input type="email" class="form-control" id="email" readonly />
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Select License Tier</label>
+          <select class="form-select" id="tier">
+            <option value="1" data-label="Single Org ($500)">Single Org(one-time purchase) - $500</option>
+            <option value="3-5" data-label="Small Team ($900)"> (3–5)Locations(one-time purchase)- $900</option>
+            <option value="5-10" data-label="Mid-size Team ($3,500)"> (5–10)Locations(one-time purchase)- $3,500</option>
+            <option value="10+" data-label="Enterprise ($5,000)">Enterprise(10+Locations) (one-time purchase)- $5,000</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Continue</button>
+      </form>
+
+      <div id="confirmation" class="mt-4"></div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get("email");
+    const domain = email ? email.split("@")[1] : "";
+    document.getElementById("email").value = email;
+
+    document.getElementById("license-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const tier = document.getElementById("tier").value;
+
+      const response = await fetch("/purchase-license", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, tier })
+      });
+
+      const result = await response.json();
+      const confirmation = document.getElementById("confirmation");
+
+      if (result.success) {
+        confirmation.innerHTML = `
+          <div class="alert alert-success">
+            <strong>License Created!</strong><br>
+            Domain: <code>${domain}</code><br>
+            License Key: <code>${result.licenseKey}</code><br>
+            Total: $${result.price}<br>
+          </div>
+        `;
+      } else {
+        confirmation.innerHTML = `<div class="alert alert-danger">Error: ${result.error}</div>`;
+      }
+    });
+  </script>
+</body>
+</html>
