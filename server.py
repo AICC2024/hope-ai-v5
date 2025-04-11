@@ -146,6 +146,13 @@ def serve_admin():
         return redirect("/login")  # Only admins can access
     return send_from_directory("static", "admin.html")
 
+@app.route("/admin-licenses.html", methods=["GET"])
+def serve_admin_licenses_page():
+    """Serve the license dashboard HTML."""
+    if session.get("role") != "admin":
+        return redirect("/login")
+    return send_from_directory("static", "admin-licenses.html")
+
 # API to Add Users (Admin Only)
 @app.route("/admin/add-user", methods=["POST"])
 def add_user():
@@ -277,6 +284,37 @@ def assign_license():
             conn.close()
 
     return jsonify({"success": True, "licenseKey": license_key})
+
+@app.route("/admin/licenses", methods=["GET"])
+def get_licenses_dashboard():
+    """Return license data for admin dashboard."""
+    if session.get("role") != "admin":
+        return redirect("/login")
+
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(''' 
+                    SELECT 
+                        l.domain,
+                        l.tier,
+                        l.license_key,
+                        COUNT(u.id) AS user_count
+                    FROM licenses l
+                    LEFT JOIN users u ON l.domain = SPLIT_PART(u.email, '@', 2)
+                    GROUP BY l.domain, l.tier, l.license_key
+                    ORDER BY l.domain;
+                ''')
+                licenses = cur.fetchall()
+    except Exception as e:
+        print(f"License dashboard error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+    return jsonify({"licenses": licenses})
 
 @app.route("/purchase-license", methods=["GET"])
 def serve_purchase_license():
