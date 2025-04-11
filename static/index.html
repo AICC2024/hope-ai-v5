@@ -115,6 +115,10 @@
     <div class="chat-container">
         <div class="chat-header">
             <h2>HOPE.AI Chat</h2>
+            <div class="btn-group" role="group" aria-label="Font size controls">
+              <button id="decreaseFont" class="btn btn-outline-secondary btn-sm" title="Smaller font">A−</button>
+              <button id="increaseFont" class="btn btn-outline-secondary btn-sm" title="Larger font">A+</button>
+            </div>
             <div>
                 <a href="/history-page" class="btn btn-secondary btn-sm">View History</a>
                 <button id="saveChatButton" class="btn btn-success btn-sm">Save Chat</button>
@@ -151,6 +155,15 @@
 
     <script>
         let currentUserEmail = null;
+        let fontSize = 16;
+        const savedSize = localStorage.getItem("chatFontSize");
+        console.log("Loaded saved font size from localStorage:", savedSize);
+        if (savedSize) {
+          fontSize = parseInt(savedSize);
+          document.querySelectorAll(".message-text").forEach(el => {
+            el.style.fontSize = `${fontSize}px`;
+          });
+        }
 
         function saveChatAsText() {
             let chatContent = Array.from(document.querySelectorAll(".message")).map(msg => 
@@ -194,6 +207,23 @@
 
             if (saveChatButton) {
                 saveChatButton.addEventListener("click", saveChatAsText);
+            }
+
+            document.getElementById("increaseFont").addEventListener("click", () => {
+                fontSize = Math.min(fontSize + 2, 24);
+                updateFontSize();
+            });
+
+            document.getElementById("decreaseFont").addEventListener("click", () => {
+                fontSize = Math.max(fontSize - 2, 12);
+                updateFontSize();
+            });
+
+            function updateFontSize() {
+                document.querySelectorAll(".message-text").forEach(el => {
+                    el.style.fontSize = `${fontSize}px`;
+                });
+                localStorage.setItem("chatFontSize", fontSize);
             }
 
             async function askQuestion() {
@@ -259,6 +289,7 @@
                 const textDiv = document.createElement("div");
                 textDiv.classList.add("message-text");
                 textDiv.innerText = text;
+                textDiv.style.fontSize = `${fontSize}px`;
 
                 messageDiv.appendChild(sender === "user" ? textDiv : img);
                 messageDiv.appendChild(sender === "user" ? img : textDiv);
