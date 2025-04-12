@@ -24,7 +24,7 @@
     <script>
         document.getElementById("add-user-form").addEventListener("submit", async function(event) {
             event.preventDefault();
-            const email = document.getElementById("email").value;
+            const email = document.getElementById("email").value.trim().toLowerCase();
             const password = document.getElementById("password").value;
 
             const response = await fetch("/admin/add-user", {

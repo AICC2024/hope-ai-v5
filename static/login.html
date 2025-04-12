@@ -20,12 +20,15 @@
             </div>
             <button type="submit" class="btn btn-primary w-100">Login</button>
         </form>
+        <p class="text-center mt-3">
+          Don’t have an account? <a href="/register">Register here</a>
+        </p>
     </div>
 
     <script>
         document.getElementById("login-form").addEventListener("submit", async function(event) {
             event.preventDefault();
-            const email = document.getElementById("email").value;
+            const email = document.getElementById("email").value.trim().toLowerCase();
             const password = document.getElementById("password").value;
 
             const response = await fetch("/login", {

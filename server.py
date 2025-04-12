@@ -188,7 +188,7 @@ def add_user():
 def login_user():
     """Handles user login using email & password and logs the activity."""
     data = request.json
-    email = data.get("email")
+    email = data.get("email").strip().lower()
     password = data.get("password")
 
     if not email or not password:
@@ -372,7 +372,7 @@ def purchase_license():
 def register_user():
     """Handles user registration and logs them in."""
     data = request.get_json()
-    email = data.get("email")
+    email = data.get("email").strip().lower()
     password = data.get("password")
 
     if not email or not password:
