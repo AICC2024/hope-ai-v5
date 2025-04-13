@@ -425,7 +425,9 @@ def serve_register():
 @app.before_request
 def require_login():
     allowed_routes = ["/login", "/logout", "/admin", "/register", "/purchase-license", "/create-checkout-session", "/purchase-license-success"]
-    if request.path not in allowed_routes and "user_id" not in session:
+    if (request.path not in allowed_routes and
+        not request.path.startswith("/static/") and
+        "user_id" not in session):
         return redirect("/login")
 
 # Serve the frontend
@@ -578,6 +580,27 @@ def create_checkout_session():
     if not price_id:
         return jsonify({"error": "Invalid license tier"}), 400
 
+    # Generate and store license immediately
+    domain = email.split("@")[-1]
+    license_key = f"HOPE-{domain.upper()}-{str(int(time.time()))}"
+
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(''' 
+                    INSERT INTO licenses (domain, license_key, tier, price)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (domain) DO UPDATE
+                    SET license_key = EXCLUDED.license_key,
+                        tier = EXCLUDED.tier,
+                        price = EXCLUDED.price,
+                        created_at = CURRENT_TIMESTAMP;
+                ''', (domain, license_key, tier, 0))
+                conn.commit()
+    except Exception as e:
+        print(f"Database error while creating license: {e}")
+
     try:
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
@@ -618,18 +641,49 @@ def purchase_license_success():
             conn.close()
 
     return f"""
-    <html>
-        <head><title>Purchase Successful</title></head>
-        <body style="font-family: Arial; padding: 20px;">
-            <h2>✅ Thank You for Your Purchase!</h2>
-            <p>The HOPE.AI license for <strong>{email}</strong> has been activated.</p>
-            <p><strong>License Tier:</strong> {tier}</p>
-            <p><strong>License Key:</strong> <code>{license_key}</code></p>
-            <p>You may now close this window or share access with your team.</p>
-            <a href="/" style="display: inline-block; margin-top: 20px;">Back to Home</a>
-        </body>
-    </html>
-    """
+<html>
+<head>
+  <title>Purchase Successful</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body style="font-family: Arial; padding: 20px;">
+  <div class="container">
+    <div class="text-center mb-3">
+      <img src="/static/images/naveon-logo.png" alt="Naveon Logo" style="max-height: 60px;">
+    </div>
+    <h2 class="text-success mt-4">✅ Thank You for Your Purchase!</h2>
+    <p>The HOPE.AI license for <strong>{email}</strong> has been activated.</p>
+    <p><strong>License Tier:</strong> {tier}</p>
+    <p><strong>License Key:</strong> <code>{license_key}</code></p>
+    <button class="btn btn-outline-secondary mt-3" onclick="downloadReceipt()">🧾 Download Receipt (TXT)</button>
+    <p class="mt-3">You may now close this window or click "Back to Home" to access HOPE.AI.  Anyone in your email domain now has access to HOPE.AI after signing up with their organization email.</p>
+    <a href="/" class="d-block mt-3">Back to Home</a>
+  </div>
+
+  <script>
+    function downloadReceipt() {{
+      const receipt = `
+        HOPE.AI License Receipt
+
+        Email: {email}
+        Domain: {domain}
+        License Tier: {tier}
+        License Key: {license_key}
+        Date: ` + new Date().toLocaleDateString() + `
+      `;
+      const blob = new Blob([receipt], {{ type: "text/plain" }});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "hopeai_license_receipt.txt";
+      a.click();
+      URL.revokeObjectURL(url);
+    }}
+  </script>
+</body>
+</html>
+"""
 
 @app.route("/files/view/<filename>")
 def view_file(filename):
