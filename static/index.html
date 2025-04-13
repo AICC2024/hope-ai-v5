@@ -129,6 +129,7 @@
         </div>
 
         <div id="chat-box" class="chat-box"></div>
+        <div id="source-panel" class="mt-3"></div>
 
         <div class="input-container">
             <input type="text" id="question" placeholder="Type a message...">
@@ -200,10 +201,53 @@
         });
 
         document.addEventListener("DOMContentLoaded", function () {
-            const chatBox = document.getElementById("chat-box");
+        // NOTE: The backend /ask route now supports page number offsets.
+        // A page_offsets dictionary is defined after file_map and citation generation
+        // has been updated to add the appropriate offset:
+        // 
+        //   page_offsets = {
+        //       "hope-guidance-manual_v1.00.pdf": 4,
+        //       "hqrp_qm_user_manual_chapter-hope_measures_508c.pdf": 1,
+        //       "hqrp_hospice_outcomes_and_patient_evaluation_hope_development_and_testing_report.pdf": 4
+        //   }
+        //
+        //   citations.append({
+        //       "file_name": file_name,
+        //       "page_number": page_number + page_offsets.get(file_name, 0)
+        //   })
+        const chatBox = document.getElementById("chat-box");
             const inputField = document.getElementById("question");
             const sendButton = document.getElementById("askButton");
-            const saveChatButton = document.getElementById("saveChatButton");
+        const saveChatButton = document.getElementById("saveChatButton");
+        
+        function showSources(citations) {
+            const container = document.getElementById("source-panel");
+            if (!citations || citations.length === 0) {
+                container.innerHTML = "";
+                return;
+            }
+
+            const fileLabels = {
+                "hope-guidance-manual_v1.00.pdf": "HOPE Guidance Manual v1.00",
+                "hope-guidance-manual_v1.02.pdf": "HOPE Guidance Manual v1.02",
+                "hope-v1.00_discharge_508c.pdf": "HOPE Discharge Form v1.00",
+                "hope-v1.00_admission_508c.pdf": "HOPE Admission Form v1.00",
+                "hope-v1.00_hope-update-visit_508c.pdf": "HOPE Update Visit Form v1.00",
+                "hope-v1.00_all-item_508c.pdf": "HOPE All Items v1.00",
+                "hqrp_qm_user_manual_chapter-hope_measures_508c.pdf": "HOPE QM User Manual",
+                "hqrp_hospice_outcomes_and_patient_evaluation_hope_development_and_testing_report.pdf": "HQRP Development Report"
+            };
+
+            let html = "<strong>📄 Sources:</strong><ul>";
+            citations.forEach(cite => {
+                const fileURL = `/files/view/${encodeURIComponent(cite.file_name)}#page=${cite.page_number}`;
+                const label = fileLabels[cite.file_name] || cite.file_name;
+            // Ensure tooltip shows the full filename on hover via the title attribute
+            html += `<li><a href="${fileURL}" target="_blank" title="${cite.file_name}">${label}, Page ${cite.page_number}</a></li>`;
+            });
+            html += "</ul>";
+            container.innerHTML = html;
+        }
 
             if (saveChatButton) {
                 saveChatButton.addEventListener("click", saveChatAsText);
@@ -270,6 +314,9 @@
 
                     if (data.answer) {
                         addMessage("ai", data.answer);
+                        if (data.citations) {
+                            showSources(data.citations);
+                        }
                     }
                 } catch (error) {
                     console.error("Fetch error:", error);

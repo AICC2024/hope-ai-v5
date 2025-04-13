@@ -494,11 +494,38 @@ def ask_hope_ai():
             return jsonify({"error": "Assistant failed to generate a response."})
 
         print("Retrieving assistant's response...")
-
+ 
         # Retrieve the assistant's response
         messages = openai.beta.threads.messages.list(thread_id=thread.id)
-        answer = messages.data[0].content[0].text.value  # Extract the response
-
+        import json
+        raw_text = messages.data[0].content[0].text.value
+        try:
+            parsed = json.loads(raw_text)
+            answer = parsed.get("answer", "")
+            file_map = {
+                "HOPE Guidance Manual v1.00": "hope-guidance-manual_v1.00.pdf",
+                "HOPE Guidance Manual v1.02": "hope-guidance-manual_v1.02.pdf",
+                "HQRP Development Report": "hqrp_hospice_outcomes_and_patient_evaluation_hope_development_and_testing_report.pdf",
+                "HOPE QM User Manual": "hqrp_qm_user_manual_chapter-hope_measures_508c.pdf",
+                "HOPE Update Visit Form v1.00": "hope-v1.00_hope-update-visit_508c.pdf",
+                "HOPE Discharge Form v1.00": "hope-v1.00_discharge_508c.pdf",
+                "HOPE Admission Form v1.00": "hope-v1.00_admission_508c.pdf",
+                "HOPE All Items v1.00": "hope-v1.00_all-item_508c.pdf"
+            }
+            citations = []
+            for cite in parsed.get("citations", []):
+                doc_label = cite.get("document")
+                page_number = cite.get("page_number")
+                file_name = file_map.get(doc_label)
+                if file_name:
+                    citations.append({
+                        "file_name": file_name,
+                        "page_number": page_number
+                    })
+        except json.JSONDecodeError:
+            answer = raw_text
+            citations = []
+ 
         # Save conversation to PostgreSQL
         try:
             conn = get_db_connection()
@@ -522,7 +549,10 @@ def ask_hope_ai():
             if conn:
                 conn.close()
 
-        return jsonify({"answer": answer})
+        return jsonify({
+            "answer": answer,
+            "citations": citations
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -600,6 +630,11 @@ def purchase_license_success():
         </body>
     </html>
     """
+
+@app.route("/files/view/<filename>")
+def view_file(filename):
+    """Serves PDF files from the static/files directory."""
+    return send_from_directory("static/files", filename)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5004, debug=True)
