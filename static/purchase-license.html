@@ -33,6 +33,11 @@
           </select>
         </div>
 
+        <div class="mb-3">
+          <label for="promo" class="form-label">Promo Code (optional)</label>
+          <input type="text" id="promo" class="form-control" placeholder="Enter code, e.g., HOBR25">
+        </div>
+
       </form>
 
       <button id="stripe-button" class="btn btn-success mt-3" type="button">
@@ -57,7 +62,7 @@
       const response = await fetch("/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, tier })
+        body: JSON.stringify({ email, tier, promo: document.getElementById("promo").value.trim() })
       });
 
       const result = await response.json();

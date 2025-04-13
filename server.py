@@ -564,6 +564,7 @@ def create_checkout_session():
     data = request.get_json()
     email = data.get("email")
     tier = data.get("tier")
+    promo_code = data.get("promo")
 
     if not email or not tier:
         return jsonify({"error": "Email and tier are required"}), 400
@@ -602,16 +603,28 @@ def create_checkout_session():
         print(f"Database error while creating license: {e}")
 
     try:
-        session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=[{
+        session_args = {
+            "payment_method_types": ["card"],
+            "line_items": [{
                 "price": price_id,
                 "quantity": 1
             }],
-            mode="payment",
-            success_url=f"{request.host_url}purchase-license-success?email={email}",
-            cancel_url=f"{request.host_url}purchase-license?email={email}"
-        )
+            "mode": "payment",
+            "success_url": f"{request.host_url}purchase-license-success?email={email}",
+            "cancel_url": f"{request.host_url}purchase-license?email={email}"
+        }
+        if promo_code:
+            try:
+                promo = stripe.PromotionCode.list(code=promo_code, active=True).data
+                if promo:
+                    session_args["discounts"] = [{"promotion_code": promo[0].id}]
+                else:
+                    return jsonify({"error": "Invalid or inactive promo code."}), 400
+            except Exception as e:
+                print(f"Stripe promo lookup error: {e}")
+                return jsonify({"error": "Failed to validate promo code."}), 500
+
+        session = stripe.checkout.Session.create(**session_args)
         return jsonify({"url": session.url})
     except Exception as e:
         print(f"Stripe error: {e}")
