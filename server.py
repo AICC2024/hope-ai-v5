@@ -703,5 +703,9 @@ def view_file(filename):
     """Serves PDF files from the static/files directory."""
     return send_from_directory("static/files", filename)
 
+@app.route("/user-guide")
+def serve_user_guide():
+    return send_from_directory("static", "user-guide.html")
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5004, debug=True)
