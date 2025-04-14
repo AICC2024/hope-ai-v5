@@ -54,7 +54,7 @@
     const domain = email ? email.split("@")[1] : "";
     document.getElementById("email").value = email;
 
-    const stripe = Stripe("pk_test_51RCaBSQeK1RbsWtDzOrBDc0Sdi12FR0pDqY38vgutifE7KFUORWs6HBX4djHkPoLxx1fpONuYhCTLVavcjjzF7Rj00MffI6dXP"); // Replace with your public key
+    const stripe = Stripe("pk_live_51RCaBHHhUWgABYbClhEuaVEq1xQMwJTIPWto8btG4TpCxpt3hUku8EE1ZoUVZwpjrpnOIZyik8OXFiN55GuRwJJ400vqUdTC7X"); // Replace with your public key
 
     document.getElementById("stripe-button").addEventListener("click", async function () {
       const tier = document.getElementById("tier").value;

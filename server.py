@@ -571,10 +571,10 @@ def create_checkout_session():
 
     # Replace with your real Stripe Price IDs
     tier_prices = {
-        "1": "price_1RCjqaQeK1RbsWtD4WfwsdOd",
-        "3-5": "price_1RCjqaQeK1RbsWtDLNj1zKPS",
-        "6-10": "price_1RCjqaQeK1RbsWtDJl6tvTzr",
-        "11+": "price_1RCjqaQeK1RbsWtDuLSVkgo7"
+        "1": "price_1RDZ4ZHhUWgABYbCESuzfSzw",     # 1–2 Locations – $500
+        "3-5": "price_1RDZ4ZHhUWgABYbC8rdJzr0z",    # 3–5 Locations – $900
+        "6-10": "price_1RDZ4ZHhUWgABYbCNlqrXK4p",   # 6–10 Locations – $3500
+        "11+": "price_1RDZ4ZHhUWgABYbCsA3ATVOB"     # Enterprise (11+) – $5000
     }
 
     price_id = tier_prices.get(tier)
