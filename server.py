@@ -1,12 +1,14 @@
 import os
 from dotenv import load_dotenv
 load_dotenv()
+import smtplib
+from email.mime.text import MIMEText
 import stripe
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 import psycopg2
 import bcrypt
 import time
-from flask import Flask, request, jsonify, session, redirect, send_from_directory
+from flask import Flask, request, jsonify, session, redirect, send_from_directory, render_template
 from flask_cors import CORS
 from flask_session import Session
 from psycopg2.extras import RealDictCursor
@@ -29,6 +31,10 @@ PG_PASSWORD = os.getenv("PG_PASSWORD", "Admin2025")
 
 # OpenAI API Configuration
 openai.api_key = os.getenv("OPENAI_API_KEY")
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SMTP_EMAIL = os.getenv("SMTP_EMAIL")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 
 # OpenAI Assistant ID (Replace with your actual Assistant ID)
 ASSISTANT_ID = "asst_BVHJcqvmsENpjqhBlHI07sre"
@@ -54,6 +60,42 @@ def get_db_connection():
     except Exception as e:
         print(f"Database connection error: {e}")
         return None  # Return None if the connection fails
+
+def send_reset_email(recipient_email, token):
+    reset_link = f"{request.host_url}reset-password?token={token}"
+    subject = "HOPE.AI Password Reset"
+    body = f"""Hello,
+
+We received a request to reset your HOPE.AI password.
+
+To reset your password, click the link below:
+{reset_link}
+
+If you did not request this, please send notify support@naveonguides.com.
+
+– The HOPE.AI Team
+"""
+
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = "paul@naveonguides.com"
+    msg["To"] = recipient_email
+
+    try:
+        print("[DEBUG] Preparing to send email...")
+        print(f"[DEBUG] SMTP Server: {SMTP_SERVER}")
+        print(f"[DEBUG] SMTP Port: {SMTP_PORT}")
+        print(f"[DEBUG] SMTP Username: {SMTP_EMAIL}")
+        print(f"[DEBUG] Recipient: {recipient_email}")
+
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.set_debuglevel(1)
+            server.starttls()
+            server.login(SMTP_EMAIL, SMTP_PASSWORD)
+            server.send_message(msg)
+        print(f"[INFO] Sent password reset email to {recipient_email}")
+    except Exception as e:
+        print(f"[ERROR] Failed to send reset email: {e}")
 
 
 # Ensure users table exists
@@ -424,7 +466,17 @@ def serve_register():
 # Restrict access unless logged in
 @app.before_request
 def require_login():
-    allowed_routes = ["/login", "/logout", "/admin", "/register", "/purchase-license", "/create-checkout-session", "/purchase-license-success"]
+    allowed_routes = [
+        "/login",
+        "/logout",
+        "/admin",
+        "/register",
+        "/purchase-license",
+        "/create-checkout-session",
+        "/purchase-license-success",
+        "/forgot-password",
+        "/reset-password",
+    ]
     if (request.path not in allowed_routes and
         not request.path.startswith("/static/") and
         "user_id" not in session):
@@ -706,6 +758,99 @@ def view_file(filename):
 @app.route("/user-guide")
 def serve_user_guide():
     return send_from_directory("static", "user-guide.html")
+
+@app.route("/forgot-password", methods=["GET"])
+def forgot_password():
+    print("[DEBUG] Forgot password route hit")
+    return render_template("forgot-password.html")
+
+@app.route("/forgot-password", methods=["POST"])
+def handle_forgot_password():
+    """Handle the password reset request and prepare to email a reset link."""
+    email = request.form.get("email").strip().lower()
+    if not email:
+        return "Email is required.", 400
+
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                user = cur.fetchone()
+                if not user:
+                    return "If the email exists, a reset link will be sent.", 200
+
+                import uuid
+                reset_token = str(uuid.uuid4())
+
+                # Placeholder: just log the token for now
+                print(f"[INFO] Generated reset token for {email}: {reset_token}")
+                
+                cur.execute('''
+                    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                        id SERIAL PRIMARY KEY,
+                        email TEXT NOT NULL,
+                        token TEXT NOT NULL,
+                        expires_at TIMESTAMP NOT NULL
+                    );
+                ''')
+                expires_in_seconds = 900  # 15 minutes
+                cur.execute('''
+                    INSERT INTO password_reset_tokens (email, token, expires_at)
+                    VALUES (%s, %s, NOW() + INTERVAL '1 second' * %s)
+                ''', (email, reset_token, expires_in_seconds))
+                send_reset_email(email, reset_token)
+
+    except Exception as e:
+        print(f"[ERROR] Password reset error for {email}: {str(e)}")
+        return "Something went wrong.", 500
+
+    return "If the email exists, a reset link will be sent.", 200
+
+@app.route("/reset-password", methods=["GET"])
+def serve_reset_password_page():
+    token = request.args.get("token")
+    if not token:
+        return "Invalid reset link.", 400
+    return render_template("reset-password.html", token=token)
+
+@app.route("/reset-password", methods=["POST"])
+def handle_reset_password():
+    token = request.form.get("token")
+    password = request.form.get("password")
+    confirm = request.form.get("confirm")
+
+    if not token or not password or not confirm:
+        return "All fields are required.", 400
+    if password != confirm:
+        return "Passwords do not match.", 400
+
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(''' 
+                    SELECT email FROM password_reset_tokens 
+                    WHERE token = %s AND expires_at > NOW()
+                ''', (token,))
+                result = cur.fetchone()
+                if not result:
+                    return "Reset link is invalid or has expired.", 400
+
+                email = result[0]
+                hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+                # Update password
+                cur.execute("UPDATE users SET password = %s WHERE email = %s", (hashed_password, email))
+
+                # Invalidate token
+                cur.execute("DELETE FROM password_reset_tokens WHERE token = %s", (token,))
+                conn.commit()
+    except Exception as e:
+        print(f"[ERROR] Password reset failed: {e}")
+        return "Server error. Please try again later.", 500
+
+    return redirect("/login")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5004, debug=True)
