@@ -71,14 +71,14 @@ We received a request to reset your HOPE.AI password.
 To reset your password, click the link below:
 {reset_link}
 
-If you did not request this, please send notify support@naveonguides.com.
+If you did not request this, please send notify hope.ai@naveonguides.com.
 
 – The HOPE.AI Team
 """
 
     msg = MIMEText(body)
     msg["Subject"] = subject
-    msg["From"] = "paul@naveonguides.com"
+    msg["From"] = "hope.ai@naveonguides.com"
     msg["To"] = recipient_email
 
     try:

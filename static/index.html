@@ -138,7 +138,7 @@
         <div class="text-center mt-4">
           <a href="/user-guide" class="btn btn-outline-secondary" target="_blank">📘 View HOPE.AI User Guide</a>
           <p class="mt-2 mb-0">
-            Need help? <a href="mailto:support@HOPE.AI.com">Contact support@HOPE.AI.com</a><br>
+            Need help? <a href="mailto:hope.ai@naveonguides.com">Contact hope.ai@naveonguides.com</a><br>
             
           </p>
         </div>
@@ -154,10 +154,9 @@
                 </div>
                 <div class="modal-body">
                     <p>Your trial period has expired. Upgrade your license for continued access.</p>
-                    <p>
-                      If you are the authorized purchaser for your organization, copy and paste the secure link into your browser — you’ll be directed to the Purchase License page.<br>
-                      Otherwise, copy the secure link and provide it to the authorized purchaser for your organization.
-                    </p>
+                    <p>If you are the authorized purchaser for your organization, click the Upgrade License button.</p>
+                    <a id="purchaseNowButton" class="btn btn-warning mt-3 mb-4" href="#">Upgrade License</a>
+                    <p>Otherwise, click the Copy Link button and send it to the authorized purchaser for your organization.</p>
                     <input type="text" id="licenseLink" class="form-control" readonly>
                     <button id="copyLinkButton" class="btn btn-primary mt-2">Copy Link</button>
                 </div>
@@ -383,8 +382,9 @@
             }
 
             function showUpgradeModal(email) {
-                const licenseLink = `${window.location.origin}/purchase-license?email=${encodeURIComponent(email)}`;
+            const licenseLink = `${window.location.origin}/purchase-license?email=${encodeURIComponent(email)}`;
                 document.getElementById("licenseLink").value = licenseLink;
+                document.getElementById("purchaseNowButton").href = licenseLink;
                 const upgradeModal = new bootstrap.Modal(document.getElementById('upgradeModal'));
                 try {
                     upgradeModal.show();
