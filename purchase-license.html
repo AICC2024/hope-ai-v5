@@ -32,20 +32,16 @@
             <option value="11+" data-label="Enterprise ($5,000)">Enterprise (11+Locations) (annual purchase)- $5,000</option>
           </select>
         </div>
-        
-        <button class="btn btn-outline-primary" id="view-terms" type="button">
-          View and Accept Terms of Use
-        </button>
 
         <div class="mb-3">
           <label for="promo" class="form-label">Promo Code (optional)</label>
-          <input type="text" id="promo" class="form-control" placeholder="Enter code">
+          <input type="text" id="promo" class="form-control" placeholder="Enter code, e.g., HOBR25">
         </div>
+
       </form>
 
-      <div id="rejection-message" class="alert alert-warning mt-4" style="display: none;">
-        <p>You must accept the Terms of Use to proceed with your purchase.</p>
-      <a id="return-link" href="#" class="btn btn-outline-primary mt-2">Return to License Options</a>
+      <div id="rejection-message" class="alert alert-warning mt-3" style="display: none;">
+        You must agree to the Subscription & Terms of Use Agreement before proceeding with license purchase.
       </div>
 
       <button id="stripe-button" class="btn btn-success mt-3" type="button">
@@ -63,39 +59,28 @@
           <h5 class="modal-title" id="termsModalLabel">HOPE.AI Subscription & Terms of Use Agreement</h5>
         </div>
         <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
-          <iframe src="/static/user-agreement.html" width="100%" height="400px">
-            Your browser does not support inline frames. You can <a href="/static/user-agreement.html" target="_blank">view the agreement here</a>.
-          </iframe>
+          <iframe src="/static/docs/HOPEAI_Subscription_Terms_Agreement.pdf" width="100%" height="400px"></iframe>
         </div>
         <div class="modal-footer">
-          <a href="/static/HOPEAI_Subscription_Terms_Agreement.pdf" class="btn btn-outline-secondary" download>Download PDF</a>
-          <button type="button" class="btn btn-primary" id="acceptTerms">I Agree and Continue</button>
+          <a href="/static/docs/HOPEAI_Subscription_Terms_Agreement.pdf" class="btn btn-outline-secondary" download>Download PDF</a>
           <button type="button" class="btn btn-secondary" id="declineTerms">I Do Not Agree</button>
+          <button type="button" class="btn btn-primary" id="acceptTerms">I Agree and Continue</button>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      document.getElementById("promo").disabled = true;
-      document.getElementById("stripe-button").disabled = true;
-      const returnLink = document.getElementById("return-link");
-      if (returnLink && email) {
-        returnLink.href = `/purchase-license?email=${encodeURIComponent(email)}`;
-      }
-    });
-
     const params = new URLSearchParams(window.location.search);
     const email = params.get("email");
     const domain = email ? email.split("@")[1] : "";
     document.getElementById("email").value = email;
 
-    const stripe = Stripe("pk_live_51RCaBHHhUWgABYbClhEuaVEq1xQMwJTIPWto8btG4TpCxpt3hUku8EE1ZoUVZwpjrpnOIZyik8OXFiN55GuRwJJ400vqUdTC7X");
+    const stripe = Stripe("pk_live_51RCaBHHhUWgABYbClhEuaVEq1xQMwJTIPWto8btG4TpCxpt3hUku8EE1ZoUVZwpjrpnOIZyik8OXFiN55GuRwJJ400vqUdTC7X"); // Replace with your public key
 
     document.getElementById("stripe-button").addEventListener("click", async function () {
       const tier = document.getElementById("tier").value;
+
       const response = await fetch("/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,10 +95,13 @@
       }
     });
 
-    document.getElementById("view-terms").addEventListener("click", () => {
+    // Terms modal handling
+    window.onload = function () {
       const modal = new bootstrap.Modal(document.getElementById("termsModal"));
       modal.show();
-    });
+      document.getElementById("promo").disabled = true;
+      document.getElementById("stripe-button").disabled = true;
+    };
 
     document.getElementById("acceptTerms").addEventListener("click", () => {
       document.getElementById("promo").disabled = false;
