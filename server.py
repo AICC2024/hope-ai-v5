@@ -853,4 +853,6 @@ def handle_reset_password():
     return redirect("/login")
 
 if __name__ == '__main__':
+    from dotenv import load_dotenv
+    load_dotenv()
     app.run(host='0.0.0.0', port=5004, debug=True)
