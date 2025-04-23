@@ -192,6 +192,51 @@ def get_usage_dashboard():
         "queries_over_time": queries_over_time
     })
 
+# /admin/users route definition (moved here for admin route organization)
+@app.route("/admin/users", methods=["GET"])
+def get_registered_users():
+    """Returns a list of registered users with email, role, unlicensed flag, and last login timestamp."""
+    if session.get("role") != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                start_date = request.args.get("start")
+                end_date = request.args.get("end")
+
+                query = """
+                    SELECT u.email,
+                           u.role,
+                           u.license_key IS NULL AS unlicensed,
+                           MAX(a.timestamp) AS last_login
+                    FROM users u
+                    LEFT JOIN activity_log a ON u.id = a.user_id AND a.action = 'login'
+                """
+                filters = []
+                params = []
+
+                if start_date:
+                    filters.append("a.timestamp >= %s")
+                    params.append(start_date)
+                if end_date:
+                    filters.append("a.timestamp <= %s")
+                    params.append(end_date)
+
+                if filters:
+                    query += " WHERE " + " AND ".join(filters)
+
+                query += " GROUP BY u.email, u.role, u.license_key ORDER BY last_login DESC NULLS LAST"
+                cur.execute(query, params)
+                users = cur.fetchall()
+                return jsonify(users)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
 # PostgreSQL Configuration
 PG_HOST = os.getenv("PG_HOST", "localhost")
 PG_DATABASE = os.getenv("PG_DATABASE", "hopeai_db")
