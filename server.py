@@ -23,6 +23,175 @@ app.secret_key = "your-secret-key"
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
+
+# /admin/domains route definition (moved here for admin route organization)
+@app.route("/admin/domains", methods=["GET"])
+def get_unique_domains():
+    """Returns a list of unique email domains from users."""
+    if session.get("role") != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT DISTINCT SPLIT_PART(email, '@', 2) AS domain
+                    FROM users
+                    WHERE email LIKE '%@%'
+                    ORDER BY domain
+                """)
+                results = cur.fetchall()
+                domains = [row[0] for row in results]
+                return jsonify(domains)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+# /admin/usage route definition with dynamic filtering and CSV export
+@app.route("/admin/usage", methods=["GET"])
+def get_usage_dashboard():
+    """
+    Returns usage statistics for the admin dashboard.
+    Supports ?days=X to filter queries_over_time for the last X days (default 7),
+    and ?export=csv to export queries_over_time as CSV.
+    """
+    if session.get("role") != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    export_csv = request.args.get("export") == "csv"
+    try:
+        days = int(request.args.get("days", 7))
+    except ValueError:
+        days = 7
+    domain_filter = request.args.get("domain")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Total queries, with optional domain filter
+                if domain_filter:
+                    cur.execute("""
+                        SELECT COUNT(*)
+                        FROM chat c
+                        JOIN users u ON c.user_id = u.id
+                        WHERE u.email ILIKE %s
+                    """, (f"%@{domain_filter}",))
+                else:
+                    cur.execute("SELECT COUNT(*) FROM chat;")
+                total_queries = cur.fetchone()["count"]
+
+                # Active users (30 days), with optional domain filter
+                if domain_filter:
+                    cur.execute("""
+                        SELECT COUNT(DISTINCT a.user_id)
+                        FROM activity_log a
+                        JOIN users u ON a.user_id = u.id
+                        WHERE a.timestamp > NOW() - INTERVAL '30 days'
+                        AND u.email ILIKE %s
+                    """, (f"%@{domain_filter}",))
+                else:
+                    cur.execute("""
+                        SELECT COUNT(DISTINCT user_id)
+                        FROM activity_log
+                        WHERE timestamp > NOW() - INTERVAL '30 days'
+                    """)
+                active_users = cur.fetchone()["count"]
+
+                # New users this month, with optional domain filter
+                if domain_filter:
+                    cur.execute("""
+                        SELECT COUNT(*)
+                        FROM users
+                        WHERE DATE_TRUNC('month', CURRENT_DATE) = DATE_TRUNC('month', CURRENT_DATE)
+                        AND email ILIKE %s
+                    """, (f"%@{domain_filter}",))
+                else:
+                    cur.execute("""
+                        SELECT COUNT(*)
+                        FROM users
+                        WHERE DATE_TRUNC('month', CURRENT_DATE) = DATE_TRUNC('month', CURRENT_DATE)
+                    """)
+                new_users = cur.fetchone()["count"]
+
+                # Top 10 users by queries, with optional domain filter
+                if domain_filter:
+                    cur.execute("""
+                        SELECT email, COUNT(chat.id) AS query_count
+                        FROM users
+                        JOIN chat ON users.id = chat.user_id
+                        WHERE email ILIKE %s
+                        GROUP BY email
+                        ORDER BY query_count DESC
+                        LIMIT 10
+                    """, (f"%@{domain_filter}",))
+                else:
+                    cur.execute("""
+                        SELECT email, COUNT(chat.id) AS query_count
+                        FROM users
+                        JOIN chat ON users.id = chat.user_id
+                        GROUP BY email
+                        ORDER BY query_count DESC
+                        LIMIT 10
+                    """)
+                top_users = cur.fetchall()
+
+                # Queries over time for the last X days, with optional domain filter
+                if domain_filter:
+                    cur.execute("""
+                        SELECT TO_CHAR(c.timestamp::date, 'YYYY-MM-DD') AS date, COUNT(*) AS count
+                        FROM chat c
+                        JOIN users u ON c.user_id = u.id
+                        WHERE u.email ILIKE %s
+                        AND c.timestamp >= CURRENT_DATE - INTERVAL %s
+                        GROUP BY date
+                        ORDER BY date ASC
+                    """, (f"%@{domain_filter}", f'{days - 1} days'))
+                else:
+                    cur.execute("""
+                        SELECT TO_CHAR(timestamp::date, 'YYYY-MM-DD') AS date, COUNT(*) AS count
+                        FROM chat
+                        WHERE timestamp >= CURRENT_DATE - INTERVAL %s
+                        GROUP BY date
+                        ORDER BY date ASC
+                    """, (f'{days - 1} days',))
+                queries_over_time = cur.fetchall()
+
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    finally:
+        if conn:
+            conn.close()
+
+    if export_csv:
+        import csv
+        from io import StringIO
+        output = StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Date", "Query Count"])
+        for row in queries_over_time:
+            writer.writerow([row["date"], row["count"]])
+        output.seek(0)
+        return app.response_class(
+            output.read(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=usage-report.csv"}
+        )
+
+    return jsonify({
+        "total_queries": total_queries,
+        "active_users": active_users,
+        "new_users": new_users,
+        "top_users": top_users,
+        "queries_over_time": queries_over_time
+    })
+
 # PostgreSQL Configuration
 PG_HOST = os.getenv("PG_HOST", "localhost")
 PG_DATABASE = os.getenv("PG_DATABASE", "hopeai_db")
