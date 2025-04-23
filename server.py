@@ -210,9 +210,10 @@ def get_registered_users():
                     SELECT u.email,
                            u.role,
                            u.license_key IS NULL AS unlicensed,
-                           MAX(a.timestamp) AS last_login
+                           MAX(CASE WHEN a.action = 'login' THEN a.timestamp END) AS last_login,
+                           MAX(CASE WHEN a.action = 'register' THEN a.timestamp END) AS registered_at
                     FROM users u
-                    LEFT JOIN activity_log a ON u.id = a.user_id AND a.action = 'login'
+                    LEFT JOIN activity_log a ON u.id = a.user_id
                 """
                 filters = []
                 params = []
@@ -430,6 +431,9 @@ def add_user():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("INSERT INTO users (email, password) VALUES (%s, %s)", (email, hashed_password))
+                cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                user_id = cur.fetchone()[0]
+                cur.execute("INSERT INTO activity_log (user_id, action) VALUES (%s, 'register')", (user_id,))
                 conn.commit()
     except psycopg2.IntegrityError:
         return jsonify({"error": "Email already exists"}), 400
@@ -658,6 +662,7 @@ def register_user():
                     RETURNING id;
                 """, (email, hashed_password, assigned_license))
                 user_id = cur.fetchone()[0]
+                cur.execute("INSERT INTO activity_log (user_id, action) VALUES (%s, 'register')", (user_id,))
                 conn.commit()
 
                 # Log them in

@@ -182,6 +182,7 @@
         <tr>
           <th>Email</th>
           <th>Last Login</th>
+          <th>Registered</th>
           <th>Role</th>
           <th>Status</th>
         </tr>
@@ -337,6 +338,7 @@ function loadRegisteredUsers() {
         const row = `<tr>
           <td>${user.email}</td>
           <td>${user.last_login ? new Date(user.last_login).toLocaleString() : "—"}</td>
+          <td>${user.registered_at ? new Date(user.registered_at).toLocaleDateString() : "—"}</td>
           <td>${user.role}</td>
           <td>${statusText.join("<br>")}</td>
         </tr>`;
