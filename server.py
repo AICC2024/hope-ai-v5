@@ -834,25 +834,24 @@ def ask_hope_ai():
 def create_checkout_session():
     data = request.get_json()
     email = data.get("email")
-    tier = data.get("tier")
+    locations = int(data.get("locations", 1))
     promo_code = data.get("promo")
 
-    if not email or not tier:
-        return jsonify({"error": "Email and tier are required"}), 400
+    if not email or not locations:
+        return jsonify({"error": "Email and number of locations are required"}), 400
 
-    # Replace with your real Stripe Price IDs
-    tier_prices = {
-        "1": "price_1RDZ4ZHhUWgABYbCESuzfSzw",     # 1–2 Locations – $500
-        "3-5": "price_1RDZ4ZHhUWgABYbC8rdJzr0z",    # 3–5 Locations – $900
-        "6-10": "price_1RDZ4ZHhUWgABYbCNlqrXK4p",   # 6–10 Locations – $3500
-        "11+": "price_1RDZ4ZHhUWgABYbCsA3ATVOB"     # Enterprise (11+) – $5000
-    }
+    price_per_location = 495
+    if 3 <= locations <= 5:
+        price_per_location = 445
+    elif 6 <= locations <= 10:
+        price_per_location = 422
+    elif 11 <= locations <= 14:
+        price_per_location = 401
+    elif locations >= 15:
+        price_per_location = 381
 
-    price_id = tier_prices.get(tier)
-    if not price_id:
-        return jsonify({"error": "Invalid license tier"}), 400
+    total_price_cents = int(price_per_location * locations * 100)
 
-    # Generate and store license immediately
     domain = email.split("@")[-1]
     license_key = f"HOPE-{domain.upper()}-{str(int(time.time()))}"
 
@@ -860,7 +859,7 @@ def create_checkout_session():
         conn = get_db_connection()
         with conn:
             with conn.cursor() as cur:
-                cur.execute(''' 
+                cur.execute('''
                     INSERT INTO licenses (domain, license_key, tier, price)
                     VALUES (%s, %s, %s, %s)
                     ON CONFLICT (domain) DO UPDATE
@@ -868,7 +867,7 @@ def create_checkout_session():
                         tier = EXCLUDED.tier,
                         price = EXCLUDED.price,
                         created_at = CURRENT_TIMESTAMP;
-                ''', (domain, license_key, tier, 0))
+                ''', (domain, license_key, f"{locations} locations", price_per_location * locations))
                 conn.commit()
     except Exception as e:
         print(f"Database error while creating license: {e}")
@@ -877,13 +876,23 @@ def create_checkout_session():
         session_args = {
             "payment_method_types": ["card"],
             "line_items": [{
-                "price": price_id,
-                "quantity": 1
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {
+                        "name": f"HOPE.AI Annual License ({locations} Location{'s' if locations != 1 else ''})",
+                        "description": "Includes full access to HOPE.AI compliance platform."
+                    },
+                    "unit_amount": total_price_cents,
+                    "tax_behavior": "exclusive"
+                },
+                "quantity": 1,
             }],
             "mode": "payment",
+            "automatic_tax": {"enabled": True},
             "success_url": f"{request.host_url}purchase-license-success?email={email}",
             "cancel_url": f"{request.host_url}purchase-license?email={email}"
         }
+
         if promo_code:
             try:
                 promo = stripe.PromotionCode.list(code=promo_code, active=True).data

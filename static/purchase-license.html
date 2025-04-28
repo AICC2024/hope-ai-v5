@@ -17,22 +17,27 @@
       <h2>Activate a HOPE.AI License</h2>
       <p>Empower your organization with full access to HOPE.AI — real-time, AI-powered insights for CMS compliance with Hospice Outcomes and Patient Evaluation.</p>
 
-      <form id="license-form">
-        <div class="mb-3">
-          <label class="form-label">Organization Email</label>
-          <input type="email" class="form-control" id="email" readonly />
+      <div class="mb-3">
+        <label class="form-label">Organization Email</label>
+        <input type="email" class="form-control" id="email" readonly />
+      </div>
+
+      <div class="card p-3 mb-4">
+        <h4>HOPE.AI Pricing Calculator</h4>
+        <div class="form-group mt-3">
+          <label for="locationCount" class="form-label">Number of Locations:</label>
+          <input type="number" id="locationCount" class="form-control" min="1" value="1" onchange="calculatePrice()">
         </div>
 
-        <div class="mb-3">
-          <label class="form-label">Select License Tier</label>
-          <select class="form-select" id="tier">
-            <option value="1" data-label="Single Org ($500)">Single Org (annual purchase) - $500</option>
-            <option value="3-5" data-label="Small Team ($900)"> (3–5) Locations (annual purchase)- $900</option>
-            <option value="6-10" data-label="Mid-size Team ($3,500)"> (6–11) Locations (annual purchase)- $3,500</option>
-            <option value="11+" data-label="Enterprise ($5,000)">Enterprise (11+Locations) (annual purchase)- $5,000</option>
-          </select>
+        <div class="mt-3">
+          <h5>Annual Pricing Summary:</h5>
+          <p id="perLocationPrice"></p>
+          <p id="totalPrice"></p>
         </div>
-        
+      </div>
+
+      <form id="license-form">
+
         <button class="btn btn-outline-primary" id="view-terms" type="button">
           View and Accept Terms of Use
         </button>
@@ -78,6 +83,26 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
+    function calculatePrice() {
+      const count = parseInt(document.getElementById("locationCount").value, 10);
+
+      let pricePerLocation = 495;
+      if (count >= 3 && count <= 5) {
+        pricePerLocation = 445;
+      } else if (count >= 6 && count <= 10) {
+        pricePerLocation = 422;
+      } else if (count >= 11 && count <= 14) {
+        pricePerLocation = 401;
+      } else if (count >= 15) {
+        pricePerLocation = 381;
+      }
+
+      const totalPrice = pricePerLocation * count;
+
+      document.getElementById("perLocationPrice").innerHTML = `Per-Location Price: <strong>$${pricePerLocation.toFixed(2)}</strong>`;
+      document.getElementById("totalPrice").innerHTML = `Total Annual Price: <strong>$${totalPrice.toLocaleString()}</strong>`;
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
       document.getElementById("promo").disabled = true;
       document.getElementById("stripe-button").disabled = true;
@@ -85,6 +110,7 @@
       if (returnLink && email) {
         returnLink.href = `/purchase-license?email=${encodeURIComponent(email)}`;
       }
+      calculatePrice();
     });
 
     const params = new URLSearchParams(window.location.search);
@@ -95,11 +121,12 @@
     const stripe = Stripe("pk_live_51RCaBHHhUWgABYbClhEuaVEq1xQMwJTIPWto8btG4TpCxpt3hUku8EE1ZoUVZwpjrpnOIZyik8OXFiN55GuRwJJ400vqUdTC7X");
 
     document.getElementById("stripe-button").addEventListener("click", async function () {
-      const tier = document.getElementById("tier").value;
+      const locations = document.getElementById("locationCount").value;
+      const promo = document.getElementById("promo").value.trim();
       const response = await fetch("/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, tier, promo: document.getElementById("promo").value.trim() })
+        body: JSON.stringify({ email, locations, promo })
       });
 
       const result = await response.json();
