@@ -777,7 +777,7 @@ def ask_hope_ai():
             answer = parsed.get("answer", "")
             file_map = {
                 "HOPE Guidance Manual v1.00": "hope-guidance-manual_v1.00.pdf",
-                "HOPE Guidance Manual v1.02": "hope-guidance-manual_v1.00.pdf",
+                "HOPE Guidance Manual v1.02": "hope-guidance-manual_v.1.01_06_2025.pdf",
                 "HQRP Development Report": "hqrp_hospice_outcomes_and_patient_evaluation_hope_development_and_testing_report.pdf",
                 "HOPE QM User Manual": "hqrp_qm_user_manual_chapter-hope_measures_508c.pdf",
                 "HOPE Update Visit Form v1.00": "hope-v1.00_hope-update-visit_508c.pdf",
