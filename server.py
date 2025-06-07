@@ -771,7 +771,14 @@ def ask_hope_ai():
         # Retrieve the assistant's response
         messages = openai.beta.threads.messages.list(thread_id=thread.id)
         import json
-        raw_text = messages.data[0].content[0].text.value
+        raw_text = ""
+        for msg in messages.data:
+            for content in msg.content:
+                if content.type == "text":
+                    raw_text = content.text.value
+                    break
+            if raw_text:
+                break
         try:
             parsed = json.loads(raw_text)
             answer = parsed.get("answer", "")
